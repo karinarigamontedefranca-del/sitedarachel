@@ -2,6 +2,24 @@ import { google } from "googleapis";
 
 const SHEET_NAME = "Carrosséis";
 
+// Mesma ordem de colunas da planilha modelo — usado ao montar linhas novas.
+export const SHEET_COLUMNS = [
+  "trending_topic",
+  "status",
+  "slide1_titulo",
+  "slide1_imagem",
+  "slide2_titulo",
+  "slide2_lista",
+  "slide2_imagem",
+  "slide3_titulo",
+  "slide3_imagem",
+  "slide4_titulo",
+  "slide4_lista",
+  "slide4_imagem",
+  "slide5_titulo",
+  "slide5_imagem",
+] as const;
+
 function getAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -55,6 +73,22 @@ export async function updateStatusCell(
     valueInputOption: "RAW",
     requestBody: {
       values: [[status]],
+    },
+  });
+}
+
+export async function appendRow(row: string[]): Promise<void> {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = getSheetId();
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${SHEET_NAME}!A1`,
+    valueInputOption: "RAW",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+      values: [row],
     },
   });
 }
