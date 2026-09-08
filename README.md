@@ -1,75 +1,76 @@
-# Gerador de Posts — Rachel Patrocínio
+# Gerador de Posts — Rachel Patrocínio (versão Vercel)
 
-Site que gera carrosséis de Instagram automaticamente: a Rachel clica em um tema
-em alta, e o sistema gera o texto (no tom de voz dela) + busca uma foto real
-relacionada ao tema + monta a arte final no padrão visual do manual de marca dela.
+## Estrutura do projeto (importante não mudar os nomes de pasta)
 
-## O que você precisa (as duas chaves gratuitas)
-
-1. **ANTHROPIC_API_KEY**
-   - Acesse: https://platform.claude.com
-   - Crie uma conta (pode usar o mesmo e-mail da assinatura Pro — são contas
-     separadas, mas podem compartilhar e-mail)
-   - Vá em "API Keys" → "Create Key"
-   - Cobrança: por uso (pay-as-you-go). Ganha US$5 de crédito grátis ao criar a conta.
-
-2. **UNSPLASH_ACCESS_KEY**
-   - Acesse: https://unsplash.com/developers
-   - Clique em "Register as a developer" → "New Application"
-   - Aceite os termos, dê um nome ao app (ex: "Rachel Patrocinio Posts")
-   - Copie a "Access Key" gerada
-   - Gratuito. O plano de testes ("Demo") permite 50 buscas por hora — mais que
-     suficiente para gerar alguns posts por semana. Se um dia precisarem de mais
-     volume, dá para solicitar produção (ainda gratuito) direto no painel deles.
-
-## Instalação (rodando localmente, no seu computador)
-
-```bash
-cd rachel-post-generator
-pip install -r requirements.txt
-
-export ANTHROPIC_API_KEY="cole_aqui_sua_chave"
-export UNSPLASH_ACCESS_KEY="cole_aqui_sua_chave"
-
-python app.py
+```
+├── api/
+│   └── index.py       <- todo o backend (Flask)
+├── public/
+│   ├── index.html
+│   ├── style.css
+│   ├── app.js
+│   └── fonts/
+├── vercel.json
+└── requirements.txt
 ```
 
-Depois abra **http://localhost:5000** no navegador.
+## Passo a passo do deploy
 
-## Colocando no ar (pra Rachel acessar de qualquer lugar, não só no seu PC)
+### 1. Subir esses arquivos pro GitHub
 
-Esse projeto é um site Flask comum — pode ser hospedado em qualquer serviço que
-rode Python, por exemplo:
-- Render.com (tem plano gratuito)
-- Railway.app
-- Um servidor próprio (VPS)
+No repositório que você já criou (`sitedarachel`), **apague os arquivos antigos do
+template Next.js** (o que estava causando o erro de build) e suba esses arquivos
+no lugar, mantendo exatamente essa estrutura de pastas.
 
-Em qualquer um deles, o processo é: subir esses arquivos, configurar as duas
-variáveis de ambiente (ANTHROPIC_API_KEY e UNSPLASH_ACCESS_KEY) no painel do
-serviço, e apontar o comando de start para `python app.py`.
+### 2. Conectar o repositório na Vercel
 
-## Como funciona por dentro
+Se já estava conectado, um novo push já dispara um novo deploy automaticamente.
 
-- `GET /api/trending` → pergunta pro Claude (com busca na web ativada) quais são
-  os assuntos em alta agora relacionados a marketing/branding, e devolve 6 temas.
-- `POST /api/generate` → pede pro Claude escrever o roteiro dos 7 slides no tom de
-  voz da Rachel; para os slides marcados como "visuais", busca uma foto real no
-  Unsplash; monta cada slide (1080x1350px) com as fontes e cores do manual de
-  marca (`fonts/PlayfairDisplay-*.ttf` e `fonts/Montserrat-*.ttf`).
-- As imagens finais ficam salvas em `generated/<id>/slide_01.jpg` etc., prontas
-  para baixar e postar.
+### 3. Ativar o armazenamento de imagem (Vercel Blob)
 
-## Personalizando
+Isso substitui a necessidade de qualquer conta externa pra guardar as fotos:
 
-- Cores e fontes: no topo do `app.py`, em `BROWN_DEEP`, `ROSE`, `CREAM`.
-- Tom de voz / estrutura do roteiro: no texto de `script_prompt`, dentro da
-  função `api_generate` em `app.py`.
-- Quantidade de posts/temas mostrados: ajuste o prompt de `api_trending`.
+1. Dentro do projeto na Vercel, vá na aba **Storage**
+2. **Create Database** → escolha **Blob**
+3. Dê um nome (ex: `rachel-posts-media`) → **Create**
+4. A Vercel já conecta automaticamente ao projeto e cria a variável
+   `BLOB_READ_WRITE_TOKEN` sozinha — não precisa copiar/colar nada aqui.
 
-## Sobre direitos de imagem
+### 4. Configurar as outras duas variáveis de ambiente
 
-As fotos vêm da API oficial do Unsplash, que licencia uso gratuito, inclusive
-comercial, sem necessidade de crédito (mas é uma boa prática dar crédito quando
-possível). O prompt já instrui a IA a nunca pedir fotos de pessoas famosas
-identificáveis nem de logos de marcas registradas, para evitar problemas de
-direitos de imagem/marca.
+Em **Project → Settings → Environment Variables**, adicione:
+
+| Nome | Valor |
+|---|---|
+| `ANTHROPIC_API_KEY` | sua chave de platform.claude.com |
+| `UNSPLASH_ACCESS_KEY` | sua chave de unsplash.com/developers (opcional) |
+
+Depois de adicionar, vá em **Deployments** → nos três pontinhos do último
+deploy → **Redeploy** (variáveis novas só valem a partir do próximo deploy).
+
+### 5. Acessar
+
+A Vercel te dá uma URL tipo `sitedarachel.vercel.app` — é essa que a Rachel usa.
+
+## Sobre o plano gratuito da Vercel (Hobby)
+
+- Funções têm limite de tempo de execução (a geração dos 7 slides em conjunto
+  deve caber dentro do limite, mas se o `/api/render` der timeout, o sintoma é
+  a tela travar em "Gerando arquivos finais..." — nesse caso me avise que eu
+  ajusto o código pra gerar os slides um por vez em vez de todos juntos).
+- O plano Hobby é oficialmente para uso pessoal/não-comercial. Como esse é um
+  projeto de trabalho da Rachel, vale ficar de olho: se o uso crescer bastante,
+  o caminho correto passa a ser o plano Pro (US$20/mês).
+
+## Rodando localmente antes de subir (opcional, pra testar)
+
+```bash
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY="..."
+export UNSPLASH_ACCESS_KEY="..."
+export BLOB_READ_WRITE_TOKEN="..."   # pegue em Storage -> sua Blob store -> .env.local
+python api/index.py
+```
+Isso só funciona rodando com `python api/index.py` diretamente (sem o `vercel dev`),
+pois adicionamos `app.run()` no fim do arquivo só pra esse teste local — a Vercel
+ignora essa linha em produção e chama o objeto `app` diretamente.

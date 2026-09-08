@@ -1,17 +1,17 @@
 """
-Rachel Patrocínio - Gerador de Posts (v2)
-==========================================
-Fluxo novo:
-  1. Escolhe um tema em alta -> gera o ROTEIRO de texto dos slides (sem imagem ainda)
-  2. Pra cada slide "visual", ela escolhe a foto: upload próprio OU sugestão do Unsplash
-     (a sugestão mostra 6 opções pra ela escolher, nunca insere sozinha)
-  3. Prévia ao vivo no navegador (mockup em CSS) antes de gerar o arquivo final
-  4. Gera os JPEGs finais (1080x1350) no padrão de marca
+Rachel Patrocínio - Gerador de Posts (versão Vercel)
+======================================================
+Igual à versão anterior, mas adaptada para rodar como função serverless na
+Vercel: como a Vercel não mantém uma pasta de arquivos permanente entre uma
+chamada e outra, as fotos (enviadas por upload e as artes finais geradas) são
+guardadas no VERCEL BLOB — o armazenamento de arquivo da própria Vercel.
 
-Variáveis de ambiente:
-  ANTHROPIC_API_KEY   -> https://platform.claude.com
-  UNSPLASH_ACCESS_KEY -> https://unsplash.com/developers  (opcional: só é usada
-                          se ela clicar em "sugerir fotos"; upload funciona sem isso)
+Variáveis de ambiente necessárias (configurar em Vercel → Project → Settings → Environment Variables):
+  ANTHROPIC_API_KEY    -> https://platform.claude.com
+  UNSPLASH_ACCESS_KEY  -> https://unsplash.com/developers (opcional)
+  BLOB_READ_WRITE_TOKEN -> criado automaticamente ao ativar o Blob Storage
+                           dentro do próprio projeto na Vercel
+                           (Project -> Storage -> Create Database -> Blob)
 """
 
 import os
@@ -19,23 +19,19 @@ import io
 import json
 import uuid
 import requests
-from flask import Flask, request, jsonify, send_from_directory
-from werkzeug.utils import secure_filename
+import vercel_blob
+from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw, ImageFont
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONTS_DIR = os.path.join(BASE_DIR, "fonts")
-GENERATED_DIR = os.path.join(BASE_DIR, "generated")
-UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-os.makedirs(GENERATED_DIR, exist_ok=True)
-os.makedirs(UPLOADS_DIR, exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FONTS_DIR = os.path.join(BASE_DIR, "public", "fonts")
+PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
-app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
+app = Flask(__name__, static_folder=PUBLIC_DIR, static_url_path="")
 
 # ---------------------------------------------------------------------------
 # Identidade de marca (Manual de Marca — Rachel Patrocínio)
@@ -102,20 +98,16 @@ def draw_handle(draw, color=WHITE):
 
 
 def resolve_image(image_ref):
-    """image_ref pode ser: caminho de upload local (uploads/xxx.jpg) ou URL http(s)."""
+    """image_ref é sempre uma URL http(s) nessa versão (Blob público ou Unsplash)."""
     if not image_ref:
         return None
     try:
-        if image_ref.startswith("http"):
-            r = requests.get(image_ref, timeout=15)
-            r.raise_for_status()
-            return Image.open(io.BytesIO(r.content)).convert("RGB")
-        local_path = os.path.join(UPLOADS_DIR, os.path.basename(image_ref))
-        if os.path.exists(local_path):
-            return Image.open(local_path).convert("RGB")
+        r = requests.get(image_ref, timeout=15)
+        r.raise_for_status()
+        return Image.open(io.BytesIO(r.content)).convert("RGB")
     except Exception as e:
         print("resolve_image error:", e)
-    return None
+        return None
 
 
 def build_slide(slide, index, image_ref=None):
@@ -174,7 +166,7 @@ def call_claude(messages, tools=None, max_tokens=1800):
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        json=payload, timeout=60,
+        json=payload, timeout=55,
     )
     r.raise_for_status()
     return r.json()
@@ -262,23 +254,24 @@ def api_upload():
     if "file" not in request.files:
         return jsonify({"error": "sem arquivo"}), 400
     file = request.files["file"]
-    ext = os.path.splitext(secure_filename(file.filename))[1].lower() or ".jpg"
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     if ext not in (".jpg", ".jpeg", ".png", ".webp"):
         return jsonify({"error": "formato não suportado"}), 400
-    fname = f"{uuid.uuid4().hex}{ext}"
-    file.save(os.path.join(UPLOADS_DIR, fname))
-    return jsonify({"id": fname, "url": f"/uploads/{fname}"})
+    fname = f"uploads/{uuid.uuid4().hex}{ext}"
+    result = vercel_blob.put(fname, file.read())
+    return jsonify({"id": fname, "url": result["url"]})
 
 
 @app.route("/api/library", methods=["GET"])
 def api_library():
-    files = sorted(os.listdir(UPLOADS_DIR), reverse=True)
-    return jsonify([{"id": f, "url": f"/uploads/{f}"} for f in files if not f.startswith(".")])
-
-
-@app.route("/uploads/<fname>")
-def serve_upload(fname):
-    return send_from_directory(UPLOADS_DIR, fname)
+    try:
+        result = vercel_blob.list({"prefix": "uploads/", "limit": "100"})
+        items = [{"id": b["pathname"], "url": b["url"]} for b in result.get("blobs", [])]
+        items.reverse()
+        return jsonify(items)
+    except Exception as e:
+        print("library error:", e)
+        return jsonify([])
 
 
 @app.route("/api/render", methods=["POST"])
@@ -286,36 +279,25 @@ def api_render():
     body = request.get_json(force=True)
     slides = body.get("slides", [])
     post_id = uuid.uuid4().hex[:8]
-    out_dir = os.path.join(GENERATED_DIR, post_id)
-    os.makedirs(out_dir, exist_ok=True)
 
     urls = []
     for i, slide in enumerate(slides):
         img = build_slide(slide, i, image_ref=slide.get("image_ref"))
-        fname = f"slide_{i+1:02d}.jpg"
-        img.save(os.path.join(out_dir, fname), quality=95)
-        urls.append(f"/generated/{post_id}/{fname}")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        buf.seek(0)
+        result = vercel_blob.put(f"generated/{post_id}/slide_{i+1:02d}.jpg", buf.read())
+        urls.append(result["url"])
     return jsonify({"post_id": post_id, "slides": urls})
-
-
-@app.route("/generated/<post_id>/<fname>")
-def serve_generated(post_id, fname):
-    return send_from_directory(os.path.join(GENERATED_DIR, post_id), fname)
-
-
-@app.route("/fonts/<fname>")
-def serve_font(fname):
-    return send_from_directory(FONTS_DIR, fname)
 
 
 @app.route("/")
 def index():
-    return send_from_directory(STATIC_DIR, "index.html")
+    return app.send_static_file("index.html")
 
 
+# A Vercel importa a variável `app` diretamente deste arquivo (WSGI).
+# O bloco abaixo só roda se você executar `python api/index.py` na sua máquina,
+# pra testar localmente antes de subir — a Vercel nunca executa esse bloco.
 if __name__ == "__main__":
-    if not ANTHROPIC_API_KEY:
-        print("AVISO: ANTHROPIC_API_KEY não configurada.")
-    if not UNSPLASH_ACCESS_KEY:
-        print("AVISO: UNSPLASH_ACCESS_KEY não configurada (sugestão automática desativada, upload continua funcionando).")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
