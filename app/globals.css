@@ -1,0 +1,199 @@
+:root {
+  --bg: #f6f2ea;
+  --ink: #1b1815;
+  --ink-soft: #5c5650;
+  --line: #ddd4c6;
+  --wine: #6b1f2a;
+  --wine-soft: #f0e2e0;
+  --green: #38513f;
+  --green-soft: #e6ebe3;
+  --amber: #8a5a10;
+  --amber-soft: #f3e6cf;
+  --card: #fffdf9;
+  --serif: "Newsreader", Georgia, serif;
+  --sans: "Work Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 28px 96px;
+}
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 56px 0 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.masthead-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
+}
+
+.masthead-date {
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.section-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 40px 0 4px;
+}
+
+.section-count {
+  font-family: var(--serif);
+  font-size: 22px;
+  margin: 0 0 24px;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: start;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.entry:first-of-type {
+  border-top: 1px solid var(--line);
+}
+
+.entry-topic {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.35;
+  margin: 0 0 8px;
+  max-width: 46ch;
+}
+
+.entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 10px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.pill-gerado {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.pill-alta {
+  background: var(--wine-soft);
+  color: var(--wine);
+}
+
+.pill-pendente {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.entry-actions {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+button.action {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: 3px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button.action:hover {
+  background: var(--ink);
+  color: var(--card);
+}
+
+button.action.primary {
+  background: var(--wine);
+  border-color: var(--wine);
+  color: #fdf6f4;
+}
+
+button.action.primary:hover {
+  background: #551821;
+  border-color: #551821;
+}
+
+.empty {
+  padding: 48px 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.footer-note {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+@media (max-width: 560px) {
+  .wrap {
+    padding: 0 18px 64px;
+  }
+  .masthead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: 40px;
+  }
+  .masthead-date {
+    text-align: left;
+  }
+  .entry {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
