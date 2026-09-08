@@ -20,7 +20,7 @@ import json
 import uuid
 import requests
 import vercel_blob
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from PIL import Image, ImageDraw, ImageFont
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -31,7 +31,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONTS_DIR = os.path.join(BASE_DIR, "public", "fonts")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
-app = Flask(__name__, static_folder=PUBLIC_DIR, static_url_path="")
+app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
 # Identidade de marca (Manual de Marca — Rachel Patrocínio)
@@ -291,9 +291,32 @@ def api_render():
     return jsonify({"post_id": post_id, "slides": urls})
 
 
+@app.route("/api/debug")
+def api_debug():
+    """Rota de diagnóstico: mostra o que o servidor está enxergando de arquivos."""
+    info = {
+        "base_dir": BASE_DIR,
+        "public_dir": PUBLIC_DIR,
+        "public_dir_exists": os.path.exists(PUBLIC_DIR),
+        "base_dir_contents": os.listdir(BASE_DIR) if os.path.exists(BASE_DIR) else None,
+        "public_dir_contents": os.listdir(PUBLIC_DIR) if os.path.exists(PUBLIC_DIR) else None,
+        "env_vars_set": {
+            "ANTHROPIC_API_KEY": bool(ANTHROPIC_API_KEY),
+            "UNSPLASH_ACCESS_KEY": bool(UNSPLASH_ACCESS_KEY),
+            "BLOB_READ_WRITE_TOKEN": bool(os.environ.get("BLOB_READ_WRITE_TOKEN")),
+        },
+    }
+    return jsonify(info)
+
+
 @app.route("/")
 def index():
-    return app.send_static_file("index.html")
+    return send_from_directory(PUBLIC_DIR, "index.html")
+
+
+@app.route("/<path:filename>")
+def static_files(filename):
+    return send_from_directory(PUBLIC_DIR, filename)
 
 
 # A Vercel importa a variável `app` diretamente deste arquivo (WSGI).
