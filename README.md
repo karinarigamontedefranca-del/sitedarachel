@@ -1,68 +1,75 @@
-# Painel — Rachel Patrocínio
+# Gerador de Posts — Rachel Patrocínio
 
-Painel interno para revisar trending topics e marcar quando o carrossel
-já foi gerado no Canva Bulk Create. Lê e escreve direto na planilha do
-Google Sheets. Toda semana, uma rotina automática (Vercel Cron) busca
-novos trending topics, gera o texto dos 5 slides com IA e busca imagens
-contextuais, escrevendo tudo direto na planilha.
+Site que gera carrosséis de Instagram automaticamente: a Rachel clica em um tema
+em alta, e o sistema gera o texto (no tom de voz dela) + busca uma foto real
+relacionada ao tema + monta a arte final no padrão visual do manual de marca dela.
 
-## Rodar localmente
+## O que você precisa (as duas chaves gratuitas)
 
-1. Copie `.env.local.example` para `.env.local` e preencha com os
-   valores reais (nunca commitar esse arquivo).
-2. npm install
-3. npm run dev
-4. Abre em http://localhost:3000
+1. **ANTHROPIC_API_KEY**
+   - Acesse: https://platform.claude.com
+   - Crie uma conta (pode usar o mesmo e-mail da assinatura Pro — são contas
+     separadas, mas podem compartilhar e-mail)
+   - Vá em "API Keys" → "Create Key"
+   - Cobrança: por uso (pay-as-you-go). Ganha US$5 de crédito grátis ao criar a conta.
 
-## Variáveis de ambiente necessárias
+2. **UNSPLASH_ACCESS_KEY**
+   - Acesse: https://unsplash.com/developers
+   - Clique em "Register as a developer" → "New Application"
+   - Aceite os termos, dê um nome ao app (ex: "Rachel Patrocinio Posts")
+   - Copie a "Access Key" gerada
+   - Gratuito. O plano de testes ("Demo") permite 50 buscas por hora — mais que
+     suficiente para gerar alguns posts por semana. Se um dia precisarem de mais
+     volume, dá para solicitar produção (ainda gratuito) direto no painel deles.
 
-- GOOGLE_SHEET_ID — o ID da planilha (trecho da URL entre /d/ e /edit)
-- GOOGLE_SERVICE_ACCOUNT_EMAIL — o client_email do JSON da conta de serviço
-- GOOGLE_PRIVATE_KEY — a private_key do JSON da conta de serviço, entre aspas
-- ANTHROPIC_API_KEY — chave da API da Anthropic (console.anthropic.com),
-  usada para gerar o texto dos carrosséis
-- UNSPLASH_ACCESS_KEY — chave gratuita da API do Unsplash
-  (developers.unsplash.com → "New Application"), usada para buscar as
-  imagens de fundo contextuais
-- CRON_SECRET — uma senha qualquer, longa e aleatória, inventada por
-  você. Protege a rota de automação para que só o Vercel Cron consiga
-  chamá-la
+## Instalação (rodando localmente, no seu computador)
 
-## Deploy no Vercel
+```bash
+cd rachel-post-generator
+pip install -r requirements.txt
 
-1. Suba esta pasta para um repositório no GitHub.
-2. Em vercel.com → "Add New Project" → importe o repositório.
-3. Em Settings → Environment Variables, adicione as 6 variáveis acima
-   com os valores reais.
-4. Deploy.
-5. O arquivo `vercel.json` já configura a automação para rodar toda
-   segunda-feira às 8h (horário de Brasília) — não precisa configurar
-   nada a mais no painel do Vercel para isso funcionar.
+export ANTHROPIC_API_KEY="cole_aqui_sua_chave"
+export UNSPLASH_ACCESS_KEY="cole_aqui_sua_chave"
 
-## Testar a automação manualmente (sem esperar a segunda-feira)
+python app.py
+```
 
-Depois do deploy, chame a rota manualmente com uma ferramenta como o
-curl, passando o CRON_SECRET como token:
+Depois abra **http://localhost:5000** no navegador.
 
-curl -H "Authorization: Bearer SEU_CRON_SECRET" \
-  https://SEU-SITE.vercel.app/api/cron/trending
+## Colocando no ar (pra Rachel acessar de qualquer lugar, não só no seu PC)
 
-A resposta mostra quais tópicos foram adicionados (ou o erro, se algo
-faltar).
+Esse projeto é um site Flask comum — pode ser hospedado em qualquer serviço que
+rode Python, por exemplo:
+- Render.com (tem plano gratuito)
+- Railway.app
+- Um servidor próprio (VPS)
 
-## Como funciona
+Em qualquer um deles, o processo é: subir esses arquivos, configurar as duas
+variáveis de ambiente (ANTHROPIC_API_KEY e UNSPLASH_ACCESS_KEY) no painel do
+serviço, e apontar o comando de start para `python app.py`.
 
-- A planilha precisa ter a aba chamada exatamente "Carrosséis" com os
-  cabeçalhos: trending_topic, status, slide1_titulo, slide1_imagem,
-  slide2_titulo, slide2_lista, slide2_imagem, slide3_titulo,
-  slide3_imagem, slide4_titulo, slide4_lista, slide4_imagem,
-  slide5_titulo, slide5_imagem.
-- Toda semana, a rotina automática busca os trending topics do Brasil
-  no Google Trends, ignora os que já existem na planilha, gera o texto
-  dos 5 slides com IA (no tom de voz da Rachel) e busca uma imagem
-  contextual por slide no Unsplash — tudo isso vira uma linha nova com
-  status "pendente".
-- O painel mostra as linhas com status diferente de "gerado" na seção
-  "Prontos para revisar".
-- Clicar em "Gerar carrossel" atualiza a coluna status dessa linha para
-  "gerado" na planilha real.
+## Como funciona por dentro
+
+- `GET /api/trending` → pergunta pro Claude (com busca na web ativada) quais são
+  os assuntos em alta agora relacionados a marketing/branding, e devolve 6 temas.
+- `POST /api/generate` → pede pro Claude escrever o roteiro dos 7 slides no tom de
+  voz da Rachel; para os slides marcados como "visuais", busca uma foto real no
+  Unsplash; monta cada slide (1080x1350px) com as fontes e cores do manual de
+  marca (`fonts/PlayfairDisplay-*.ttf` e `fonts/Montserrat-*.ttf`).
+- As imagens finais ficam salvas em `generated/<id>/slide_01.jpg` etc., prontas
+  para baixar e postar.
+
+## Personalizando
+
+- Cores e fontes: no topo do `app.py`, em `BROWN_DEEP`, `ROSE`, `CREAM`.
+- Tom de voz / estrutura do roteiro: no texto de `script_prompt`, dentro da
+  função `api_generate` em `app.py`.
+- Quantidade de posts/temas mostrados: ajuste o prompt de `api_trending`.
+
+## Sobre direitos de imagem
+
+As fotos vêm da API oficial do Unsplash, que licencia uso gratuito, inclusive
+comercial, sem necessidade de crédito (mas é uma boa prática dar crédito quando
+possível). O prompt já instrui a IA a nunca pedir fotos de pessoas famosas
+identificáveis nem de logos de marcas registradas, para evitar problemas de
+direitos de imagem/marca.
